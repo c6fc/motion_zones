@@ -183,7 +183,7 @@ def getZoneNamesList( zoneList ):
 
 def notifyHit ( zoneName ):
 	print("Hit detected in zone: " + zoneName)
-	filename = dt.strftime("/motiondata/Camera1/%Y-%m-%d/" + args["filename"]) + ".jpg"
+	filename = dt.strftime("/motiondata/motioneye/Camera1/%Y-%m-%d/" + args["filename"]) + ".jpg"
 	pprint.pprint(filename)
 	cv2.imwrite(filename, frame)
 	return;
@@ -337,8 +337,8 @@ while True:
 		cv2.putText(frame, "Record", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 		if output is None:
 			(h, w) = frame.shape[:2]
-			name = dt.strftime("/motiondata/Camera1/%Y-%m-%d/" + args["filename"]) + ".avi"
-			output = cv2.VideoWriter("/motiondata/" + name, fourcc, int(math.floor(counter.fps() * 0.7)), (w, h))
+			name = dt.strftime("/motiondata/motioneye/Camera1/%Y-%m-%d/" + args["filename"]) + ".avi"
+			output = cv2.VideoWriter(name, fourcc, int(math.floor(counter.fps() * 0.7)), (w, h))
 			if not output.isOpened():
 				print("Error write")
 
