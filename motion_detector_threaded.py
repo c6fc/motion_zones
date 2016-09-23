@@ -184,6 +184,7 @@ def getZoneNamesList( zoneList ):
 def notifyHit ( zoneName ):
 	print("Hit detected in zone: " + zoneName)
 	filename = dt.strftime("/motiondata/Camera1/%Y-%m-%d/" + args["filename"]) + ".jpg"
+	pprint.pprint(filename)
 	cv2.imwrite(filename, frame)
 	return;
 
