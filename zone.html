@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" ng-app="app" ng-controller="zoneCtrl">
+<head>
+	<meta charset="UTF-8">
+	<title>MEye Zones - {{ zone.name }}</title>
+   <script src="script/jquery.min.js"></script>
+	<script src="script/angular.min.js"></script>
+	<script src="script/zoneCtrl.js"></script>
+	<link rel="stylesheet" type="text/css" href="css.css" />
+</head>
+
+<body>
+   <div ng-attr-width="{{ imageWidth }}" ng-attr-height="{{ imageHeight }}" style="position: relative; display: block;">
+      <img ng-attr-src="{{ image }}" style="position: absolute; top: 0; left: 0;">
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" style="position: absolute; top: 0; left: 0;" ng-attr-width="{{ imageWidth }}" ng-attr-height="{{ imageHeight }}">
+         <polygon ng-attr-points="{{ zonePoints }}" fill="green" stroke="green" stroke-width="2px" fill-opacity="0.4" stroke-opacity="0.8"/>
+         <circle my-draggable id="circle-{{ id }}" ng-repeat="(id, point) in zone.points" class="inactive" ng-attr-point="{{ id }}" ng-attr-cx="{{ point.x }}" ng-attr-cy="{{ point.y }}" r="3"  fill-opacity="0.6" ng-mouseover="showSelected(id)" alt="Point {{ id }}" />
+      </svg>
+   </div>
+   <div  style="position: relative; left: {{ imageWidth + 20 }}px; width: 400px">
+      <table class="zonestable" width="400">
+         <tr ng-repeat="(id, zone) in zones" id="zone-{{ id }}">
+            <td class="label">(<a href="#" ng-click="deleteZone(id)">&nbsp;-&nbsp;</a>)&nbsp;Zone {{ id }}:</td>
+            <td><a href="#" ng-click="loadZone(id)">{{ zone.name }}</a></td>
+            <td>Points: {{ zone.points.length }}</td>
+         </tr>
+      </table>
+ 	   <button ng-click="addZone()">New</button>
+	   <input class="zoneinput" type="input" type="text" maxlength="20" size="20" ng-model="zone.name" />
+	   <button ng-click="save()">Save</button>
+      <table class="pointstable" width="400">
+         <tr ng-repeat="(id, point) in zone.points" id="row-{{ id }}">
+            <td class="label">&nbsp;Point {{ id + 1 }}</td>
+            <td>X: <input type="text" size="4" maxlength="4" ng-model="zone.points[id].x"></td>
+            <td>Y: <input type="text" size="4" maxlength="4" ng-model="zone.points[id].y"></td>
+            <td><a ng-click="addPointAfter(id)">+</a> | <a ng-click="removePoint(id)">-</a></td>
+         </tr>
+         <tr class="options">
+            <td colspan="2">Warmup Frames: <input type="text" size="3" maxlength="3" ng-model="zone.warmup"></td>
+            <td colspan="2">Cooldown Frames: <input type="text" size="3" maxlength="3" ng-model="zone.cooldown"></td>
+         </tr>
+      </table>
+   </div>
+</body>
+</html>

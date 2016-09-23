@@ -1,0 +1,55 @@
+table {
+   border: 1px solid black;
+	border-collapse: collapse;
+	background: lightgray;
+}
+
+table.zonestable {
+   margin-bottom: 10px;
+}
+
+table.pointstable {
+   margin-top: 20px;
+}
+
+input.zoneinput {
+   margin-left: 20px;
+}
+
+circle.inactive {
+	fill: red;
+	stroke-width: 1;
+	stroke: black;
+}
+
+circle.active {
+	fill: lightyellow;
+	stroke-width: 1;
+	stroke: black;
+}
+
+tr.active {
+	background-color: lightyellow;
+}
+
+tr.inactive {
+	background-color: lightgray;
+}
+
+tr.options {
+	text-align: center;
+}
+
+tr.options td {
+	padding-top: 15px;
+}
+
+td {
+	font-family: "Times New Roman", Times, serif;
+	font-size: 14px;
+	font-variant: small-caps;
+}
+
+td a {
+	cursor: pointer;
+}
