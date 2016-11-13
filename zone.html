@@ -14,10 +14,23 @@
       <img ng-attr-src="{{ image }}" style="position: absolute; top: 0; left: 0;">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" style="position: absolute; top: 0; left: 0;" ng-attr-width="{{ imageWidth }}" ng-attr-height="{{ imageHeight }}">
          <polygon ng-attr-points="{{ zonePoints }}" fill="green" stroke="green" stroke-width="2px" fill-opacity="0.4" stroke-opacity="0.8"/>
+         <polygon ng-attr-points="{{ zoneMinPoints }}" fill="red" stroke="red" stroke-width="2px" fill-opacity="0.4" stroke-opacity="0.8"/>
          <circle my-draggable id="circle-{{ id }}" ng-repeat="(id, point) in zone.points" class="inactive" ng-attr-point="{{ id }}" ng-attr-cx="{{ point.x }}" ng-attr-cy="{{ point.y }}" r="3"  fill-opacity="0.6" ng-mouseover="showSelected(id)" alt="Point {{ id }}" />
+         <circle min-draggable id="min-1" class="inactive" point="1" ng-attr-cx="{{ min1.x }}" ng-attr-cy="{{ min1.y }}" r="3"  fill-opacity="0.6" alt="Point min1" />
+         <circle min-draggable id="min-2" class="inactive" point="2" ng-attr-cx="{{ min2.x }}" ng-attr-cy="{{ min2.y }}" r="3"  fill-opacity="0.6" alt="Point min2" />
       </svg>
    </div>
    <div  style="position: relative; left: {{ imageWidth + 20 }}px; width: 400px">
+      Zone Image: <input type="file" onchange="angular.element(this).scope().loadImage(event)">
+      <hr />
+      Zone JSON: <input type="file" onchange="angular.element(this).scope().loadJson(event)">
+      <br />
+      <i style="font-size: 10px; margin-left: 20px;">-- OR --</i>
+      <br />
+      <button ng-click="generateBlankZones()">Create New</button>
+      <button ng-click="downloadZones()">Download Zone File</button>
+      <br />
+      <br />
       <table class="zonestable" width="400">
          <tr ng-repeat="(id, zone) in zones" id="zone-{{ id }}">
             <td class="label">(<a href="#" ng-click="deleteZone(id)">&nbsp;-&nbsp;</a>)&nbsp;Zone {{ id }}:</td>
@@ -36,8 +49,16 @@
             <td><a ng-click="addPointAfter(id)">+</a> | <a ng-click="removePoint(id)">-</a></td>
          </tr>
          <tr class="options">
-            <td colspan="2">Warmup Frames: <input type="text" size="3" maxlength="3" ng-model="zone.warmup"></td>
-            <td colspan="2">Cooldown Frames: <input type="text" size="3" maxlength="3" ng-model="zone.cooldown"></td>
+            <td colspan="2">Warmup Seconds:<br /><input class="text" type="text" size="3" maxlength="3" ng-model="zone.warmup"></td>
+            <td colspan="2">Cooldown Seconds:<br /><input class="text" type="text" size="3" maxlength="3" ng-model="zone.cooldown"></td>
+         </tr>
+         <tr class="options">
+            <td colspan="2">Minimum Size:<br /><input class="text" type="text" size="3" maxlength="3" ng-model="zone.minimum_x">x<input class="text" type="text" size="3" maxlength="3" ng-model="zone.minimum_y"></td>
+            <td colspan="2">Continuation Frames:<br /><input class="text" type="text" size="3" maxlength="3" ng-model="zone.continuation"></td>
+         </tr>
+         <tr class="options">
+            <td colspan="2"><input type="checkbox" ng-model="zone.upload_to_s3" style="position: relative; top: 4px;">Upload to S3</td>
+            <td ng-hide="!zone.upload_to_s3" colspan="2">Bucket path: <input type="Text" size="4" ng-model="s3_bucket"></td>
          </tr>
       </table>
    </div>

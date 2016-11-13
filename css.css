@@ -44,6 +44,10 @@ tr.options td {
 	padding-top: 15px;
 }
 
+tr.options td input.text {
+	width: 36px;
+}
+
 td {
 	font-family: "Times New Roman", Times, serif;
 	font-size: 14px;

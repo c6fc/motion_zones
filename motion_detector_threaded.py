@@ -13,6 +13,12 @@ import json
 import pprint
 import numpy
 import math
+import sys
+import select
+import tty
+import termios
+import os
+import signal
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
@@ -22,15 +28,30 @@ ap.add_argument("-a", "--min-area", type=int, default=1500, help="minimum area s
 ap.add_argument("-m", "--max-area", type=int, default=11500, help="maximum area size")
 ap.add_argument("-s", "--skip-frames", type=int, default=5, help="number of frames to skip when processing")
 ap.add_argument("-b", "--blend-rate", type=int, default=3, help="background image blend rate. Higher is faster")
-ap.add_argument("-f", "--filename", type=str, default="motion_%Y-%m-%d_%H-%M-%S", help="strftime() string to use for capture files")
+ap.add_argument("-f", "--filename", type=str, default="motion_%Y-%m-%d_%H-%M-%S", help="strftime() string to use for capture file names")
 ap.add_argument("-c", "--codec", type=str, default="XVID", help="Codec to use for output videos")
 ap.add_argument("-l", "--motion-buffer", type=int, default=20, help="number of frames to capture after movement ends")
 ap.add_argument("-j", "--polygon-json", default="zones.json", help="Polygon zones file")
 ap.add_argument("-d", "--debug", action="store_true", help="Debug image stream and polygons")
 ap.add_argument("-r", "--resolution", type=float, default=1.0, help="Resolution multiplier. Use to reduce CPU utilization.")
+ap.add_argument("-p", "--filepath", type=str, default="/motiondata/motioneye/Camera1/%Y-%m-%d/", help="Folder path to store screenshots and video. In strftime format.")
 
 
 args = vars(ap.parse_args())
+
+old_settings = termios.tcgetattr(sys.stdin)
+def isData():
+    return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
+
+# Define some proper exit strategies
+def unix_hard_exit():
+	os.kill(os.getpid(), signal.SIGKILL)
+
+def sigint_unix_hard_exit_handler(signal, frame):
+	unix_hard_exit()
+
+def install_hard_ctrl_c():
+	signal.signal(signal.SIGINT, sigint_unix_hard_exit_handler)
  
 class frameCounter:
 	def __init__(self):
@@ -49,7 +70,7 @@ class frameCounter:
 		# increment the total number of frames examined during the
 		# start and end intervals
 		self._numFrames += 1
- 
+
 	def elapsed(self):
 		# return the total number of seconds between the start and
 		# end interval
@@ -131,7 +152,7 @@ frameCount = 0
 mFrameCount = args['motion_buffer']
 beta = args["blend_rate"] / float(100)
 alpha = 1.00 - beta
-fourcc = cv2.cv.FOURCC(*args["codec"])
+fourcc = cv2.VideoWriter_fourcc(*args["codec"])
 
 # initialize the active polys global objects
 global polyActive
@@ -162,9 +183,9 @@ def to_orig( x, y ):
 
 def getMotionContours( keyFrame, currentFrame ):	
 	frameDiff = cv2.absdiff(keyFrame, currentFrame)
-	thresh = cv2.threshold(frameDiff, 35, 255, cv2.THRESH_BINARY)[1]
+	thresh = cv2.threshold(frameDiff, 25, 255, cv2.THRESH_BINARY)[1]
 	thresh = cv2.dilate(thresh, None, iterations=2)
-	(cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	(_, cnts, _) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	return (cnts, frameDiff);
 
 def registerPolyMotion( point ):
@@ -182,10 +203,23 @@ def getZoneNamesList( zoneList ):
 	return text[:-2];
 
 def notifyHit ( zoneName ):
-	print("Hit detected in zone: " + zoneName)
-	filename = dt.strftime("/motiondata/motioneye/Camera1/%Y-%m-%d/" + args["filename"]) + ".jpg"
+	print("Recording events in zone: " + zoneName)
+	filename = dt.strftime("Snapshot file: " + args["filepath"] + args["filename"] + ".jpg")
 	pprint.pprint(filename)
+	if os.path.isdir(dt.strftime(args["filepath"])) is False:
+		os.makedirs(dt.strftime(args["filepath"]))
+
 	cv2.imwrite(filename, frame)
+	return;
+
+def notifyWarn ( zoneName ):
+	print("Motion detected in zone: " + zoneName)
+
+def notifyCooldown ( zoneName ):
+	print("Motion stopped in zone: " + zoneName)
+
+def notifyInactive ( zoneName ):
+	print("Zone deactivated: " + zoneName)
 	return;
 
 def notifyContinue( zoneId ):
@@ -224,6 +258,9 @@ def trackActivePolys(action, name=None):
 
 			if name in polyActiveFrame:
 				if polyActive[name]['hit'] < int(zones[zone]['warmup']) * counter.fps():
+					if polyActive[name]['hit'] is 1:
+						notifyWarn(name)
+
 					warningPolys[name] = 1
 
 					# Suppress reKeying when warning is active.
@@ -236,6 +273,9 @@ def trackActivePolys(action, name=None):
 					alertPolys[name] = 1
 
 			elif name in polyActive:
+				if polyActive[name]['miss'] is 0:
+					notifyCooldown(name)
+
 				polyActive[name]['miss'] += 1
 				if polyActive[name]['miss'] < int(zones[zone]['cooldown']) * counter.fps():
 
@@ -248,6 +288,7 @@ def trackActivePolys(action, name=None):
 				else:
 					del polyActive[name]
 					inactivePolys[name] = 1
+					notifyInactive(name)
 
 			else:
 				inactivePolys[name] = 1
@@ -270,17 +311,30 @@ def trackActivePolys(action, name=None):
 
 # loop over the frames of the video
 while True:
+	install_hard_ctrl_c()
+
+	try:
+		tty.setcbreak(sys.stdin.fileno())
+
+		if isData():
+			c = sys.stdin.read(1)
+			if c == '\x1b':         # x1b is ESC
+				break
+	finally:
+		termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 	capture = camera.read()
 	if capture is False:
 		#slow down a tad.
-		time.sleep(0.03)
+		time.sleep(0.02)
 		continue;
 
 	frame = capture
+	dt = datetime.datetime.now()
 
 	if firstFrame is None:
 		(orig_h, orig_w) = capture.shape[:2]
+		print('Capture started')
 
 	capture = cv2.resize(capture, (int(math.floor(orig_w * resolution)), int(math.floor(orig_h * resolution))))
 	compare = reduceFrame(capture)
@@ -316,7 +370,6 @@ while True:
 		cv2.putText(frame, str(cArea), to_orig(x - 5, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 	trackActivePolys("digest");
-	dt = datetime.datetime.now()
 
 	textY = 110;
 	if len(alertPolys) > 0:
@@ -337,8 +390,12 @@ while True:
 		cv2.putText(frame, "Record", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 		if output is None:
 			(h, w) = frame.shape[:2]
-			name = dt.strftime("/motiondata/motioneye/Camera1/%Y-%m-%d/" + args["filename"]) + ".avi"
-			output = cv2.VideoWriter(name, fourcc, int(math.floor(counter.fps() * 0.7)), (w, h))
+			print("Started recording. Approx. FPS: {:.2f}".format(counter.fps()))
+			if os.path.isdir(dt.strftime(args["filepath"])) is False:
+				os.makedirs(dt.strftime(args["filepath"]))
+
+			name = dt.strftime(args["filepath"] + args["filename"]) + ".avi"
+			output = cv2.VideoWriter(name, fourcc, math.floor(counter.fps()), (w, h))
 			if not output.isOpened():
 				print("Error write")
 
@@ -347,7 +404,10 @@ while True:
 	if event is 0:
 		cv2.putText(frame, "Monitor", (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 		if not output is None:
+			print("Recording stopped")
 			output.release
+			output = None
+
 
 	# reKey if not recording and not specifically supressed.
 	if reKey is 1 and event is 0:
@@ -366,7 +426,7 @@ while True:
 
 	if args['show_video'] is True:
 		frame = cv2.resize(frame, (1280, 720))
-		cv2.imshow("Live Feed", frame)
+		#cv2.imshow("Live Feed", frame)
 		#cv2.imshow("Keyframe", firstFrame)
 		#cv2.imshow("Frame Delta", frameDiff)
 

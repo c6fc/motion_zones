@@ -11,6 +11,8 @@ angular
       $scope.zones = Array();
       $scope.zone = Array();
 
+      /* Keep for eventual database integration
+
       $scope.getZones = function() {
          $http({
             method: 'GET',
@@ -34,12 +36,98 @@ angular
             alert(response);
          });
       }
+      */
+
+      $scope.loadImage = function(event) {
+         var img = new Image();
+         img.onload = function() {
+            $scope.imageHeight = this.height;
+            $scope.imageWidth = this.width;
+            $scope.$apply();
+         }
+
+         img.src = window.URL.createObjectURL(event.target.files[0]);
+         $scope.image = img.src
+         console.log(img.src)
+      }
+
+      $scope.loadJson = function(event) {
+         $http({
+            method:  'GET',
+            url:     window.URL.createObjectURL(event.target.files[0])
+         }).then(function(response) {
+            $scope.zones = response.data.zones;
+            $scope.updateJson();
+            $scope.loadZone(1);
+         })
+      }
+
+      $scope.updateJson = function() {
+         for (x in $scope.zones) {
+            console.log($scope.zones[x]);
+            y = $scope.zones[x];
+            y['warmup'] = (typeof y['warmup'] == "undefined") ? 2 : y['warmup'];
+            y['cooldown'] = (typeof y['cooldown'] == "undefined") ? 5 : y['cooldown'];
+            y['continuation'] = (typeof y['continuation'] == "undefined") ? 3 : y['continuation'];
+            y['minimum_x'] = (typeof y['minimum_x'] == "undefined") ? 50 : y['minimum_x'];
+            y['minimum_y'] = (typeof y['minimum_y'] == "undefined") ? 50 : y['minimum_y'];
+            y['upload_to_s3'] = (typeof y['upload_to_s3'] == "undefined") ? false : y['upload_to_s3'];
+            $scope.zones[x] = y;
+         }
+      }
+
+      $scope.generateBlankZones = function() {
+         zones = {
+            "1": {
+               "points": [
+                  {"x":100,"y":100},
+                  {"x":200,"y":100},
+                  {"x":150,"y":200}
+               ],
+               "name":           "New Zone",
+               "warmup":         2,
+               "cooldown":       5,
+               "continuation":   3,
+               "minimum_x":      50,
+               "minimum_y":      50,
+               "upload_to_s3":   false,
+               "s3_bucket":      ""
+            }
+         }
+
+         $scope.zones = zones;
+         $scope.loadZone(1);
+      }
+
+      $scope.downloadZones = function() {
+         var element = document.createElement('a');
+         element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(angular.toJson({"zones": $scope.zones, "image": $scope.image, "upload_to_s3": $scope.upload_to_s3, "s3_bucket": $scope.s3_bucket})));
+         element.setAttribute('download', 'zones.json');
+         element.style.display = 'none';
+
+         document.body.appendChild(element);
+         element.click();
+         document.body.removeChild(element);
+      }
 
       // Only one zone can be loaded at a time.      
       $scope.loadZone = function(id) {
          if (typeof $scope.zones[id] != "undefined") {
             $scope.zone = $scope.zones[id];
             $scope.zoneId = id;
+
+            $scope.min1 = {"x": Math.round(($scope.imageWidth / 2) - ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) - ($scope.zone.minimum_y / 2))};
+            $scope.min2 = {"x": Math.round(($scope.imageWidth / 2) + ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) + ($scope.zone.minimum_y / 2))};
+
+            $scope.minPoints = [
+               {"x": Math.round(($scope.imageWidth / 2) - ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) - ($scope.zone.minimum_y / 2))},
+               {"x": Math.round(($scope.imageWidth / 2) + ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) - ($scope.zone.minimum_y / 2))},
+               {"x": Math.round(($scope.imageWidth / 2) + ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) + ($scope.zone.minimum_y / 2))},
+               {"x": Math.round(($scope.imageWidth / 2) - ($scope.zone.minimum_x / 2)), "y": Math.round(($scope.imageHeight / 2) + ($scope.zone.minimum_y / 2))}
+            ]
+
+            console.log($scope.minPoints);
+
             $scope.updatePolygon();
             return true;
          }
@@ -85,6 +173,13 @@ angular
          };
 
          $scope.zonePoints = points;
+
+         points = "";
+         for (var i in $scope.minPoints) {
+            points += $scope.minPoints[i]['x'] + "," + $scope.minPoints[i]['y'] + " ";
+         };
+
+         $scope.zoneMinPoints = points;
       }
 
       $scope.addPointAfter = function(id) {
@@ -127,7 +222,7 @@ angular
          console.log(id);
       }
 
-      $scope.getZones();
+      // $scope.getZones();
    }])
    .directive('myDraggable', ['$document', function($document) {
       return {
@@ -173,6 +268,69 @@ angular
 
             function mouseup() {
                console.log(scope.activePoint)
+               $document.off('mousemove', mousemove);
+               $document.off('mouseup', mouseup);
+               scope.$apply();
+            }
+         }
+      }
+   }]).directive('minDraggable', ['$document', function($document) {
+      return {
+         scope: false,
+         link: function(scope, element, attr) {
+            var startX = 0, startY = 0, x = 0, y = 0;
+
+            element.css({
+               position: 'absolute',
+               border: '1px solid red',
+               backgroundColor: 'lightgrey',
+               cursor: 'pointer'
+            });
+
+            element.on('mousedown', function(event) {
+               // Prevent default dragging of selected content
+               event.preventDefault();
+               offsetX = event.pageX - element.attr('cx');
+               offsetY = event.pageY - element.attr('cy');
+               
+               point = element.attr("point");
+               scope.activePoint = point;
+               $document.on('mousemove', mousemove);
+               $document.on('mouseup', mouseup);
+               scope.$apply();
+            });
+
+            function mousemove(event) {
+               x = event.pageX - offsetX;
+               y = event.pageY - offsetY;
+
+               x = (x < 0) ? 0 : x;
+               y = (y < 0) ? 0 : y;
+               x = (x > scope.imageWidth) ? scope.imageWidth : x;
+               y = (y > scope.imageHeight) ? scope.imageHeight : y;
+
+               if (point == 1) {
+                  scope.min1 = {"x": x, "y": y}
+               } else {
+                  scope.min2 = {"x": x, "y": y}
+               }
+
+               scope.zones[scope.zoneId].minimum_x = Math.abs(scope.min1['x'] - scope.min2['x']);
+               scope.zones[scope.zoneId].minimum_y = Math.abs(scope.min1['y'] - scope.min2['y']);
+
+               scope.minPoints = [
+                  {"x": scope.min1['x'], "y": scope.min1['y']},
+                  {"x": scope.min2['x'], "y": scope.min1['y']},
+                  {"x": scope.min2['x'], "y": scope.min2['y']},
+                  {"x": scope.min1['x'], "y": scope.min2['y']}
+               ]
+
+               scope.updatePolygon();
+               scope.$apply();
+            }
+
+            function mouseup() {
+               console.log({"min_x": scope.zones[scope.zoneId].minimum_x, "min_y": scope.zones[scope.zoneId].minimum_y})
                $document.off('mousemove', mousemove);
                $document.off('mouseup', mouseup);
                scope.$apply();
